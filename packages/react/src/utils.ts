@@ -15,6 +15,7 @@ export const builderMap = (WSConfig: WSReactTypes.BuilderConfigs) => {
       backOff,
       executeAnyFunc,
       protoConfigParameters,
+      logger,
     } = WSConfig[p];
 
     const builder = new WSClientBuilder(baseURL, path);
@@ -22,6 +23,7 @@ export const builderMap = (WSConfig: WSReactTypes.BuilderConfigs) => {
     if (backOff) builder.addBackOff(backOff);
     if (protoConfigParameters)
       builder.addProtoConfigParameters(protoConfigParameters);
+    if (logger) builder.addLogger(logger);
     builder.addExecuteAnyFunc(executeAnyFunc);
 
     builders = Object.assign(builders, {

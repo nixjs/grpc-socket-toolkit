@@ -1,4 +1,4 @@
-import { Types } from "@nixjs23n6/types";
+import { Types, Interfaces } from "@nixjs23n6/types";
 import {
   WSTypes,
   WSClient,
@@ -16,6 +16,7 @@ export namespace WSReactTypes {
     backOff?: BaseBackOff;
     protoConfigParameters?: WSTypes.ProtoConfigParameters;
     executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>;
+    logger?: Interfaces.Logger;
   }
   export type BuilderConfigs = Record<string, WSParameters>;
   export type BuilderInstances = Record<string, WSClientBuilder>;

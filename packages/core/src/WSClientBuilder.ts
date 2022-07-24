@@ -1,4 +1,4 @@
-import { Types } from "@nixjs23n6/types";
+import { Types, Interfaces } from "@nixjs23n6/types";
 import { WSTypes } from "./types";
 import { WSClient } from "./WSClient";
 import { BaseBackOff } from "./backOff";
@@ -20,6 +20,7 @@ export class WSClientBuilder {
   private _path?: string;
   private _protoConfigParameters?: WSTypes.ProtoConfigParameters;
   private _executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>;
+  private _logger: Interfaces.Logger = {};
 
   constructor(baseURL: string, path?: string) {
     this._baseURL = baseURL;
@@ -46,6 +47,12 @@ export class WSClientBuilder {
     return this;
   }
 
+  public addLogger(logger?: Interfaces.Logger) {
+    this._logger.debug = (logger && logger.debug) || false;
+    this._logger.namespace = (logger && logger.namespace) || "[Socket]";
+    this._logger.color = (logger && logger.color) || "#D3DEDC";
+  }
+
   /**
    * Create WSClient instance
    */
@@ -57,7 +64,8 @@ export class WSClientBuilder {
       this._path,
       this._backOff,
       this._protoConfigParameters,
-      this._executeAnyFunc
+      this._executeAnyFunc,
+      this._logger
     );
     return this;
   }
