@@ -166,7 +166,7 @@ export class WSClient {
         this._protoConfigParameters?.protoJSONFallback,
         this._protoConfigParameters.executeEncoderDecoderMap
       )
-        .then(() => {
+        .then((res) => {
           resolve(WSEnums.States.ON_PROTO_INIT);
           this._createInstance();
         })
@@ -305,7 +305,9 @@ export class WSClient {
     type?: Types.Undefined<K>
   ) {
     console.log(
-      `[Socket] Broadcasting state: ${state}. Metadata: ${JSON.stringify(type)}`
+      `[Socket] Broadcasting state: ${state}. Metadata: ${JSON.stringify(
+        type
+      )}. URL: ${this.URL}`
     );
     for (const listener of this._stateListeners) {
       listener.callback(state, type);

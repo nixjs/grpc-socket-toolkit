@@ -23,7 +23,7 @@ export namespace WSReactTypes {
     type?: string | number;
     builders: BuilderInstances;
     ws: Types.Nullable<WSClient>;
-    onOpen: (type: string) => Promise<WSEnums.States>;
+    onOpen: (type: string) => Promise<any>;
     onReconnect: () => Promise<WSEnums.States>;
     onClose: (reason?: string) => Promise<WSEnums.States>;
     onDestroy: () => Promise<WSEnums.States>;

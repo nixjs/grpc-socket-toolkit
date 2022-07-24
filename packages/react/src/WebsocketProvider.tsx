@@ -1,5 +1,4 @@
 import React from "react";
-import { Types } from "@nixjs23n6/types";
 import {
   WSClient,
   WSClientBuilder,
@@ -7,11 +6,12 @@ import {
 } from "@nixjs23n6/grpc-socket-core";
 import { WebsocketContext } from "./useWebsocket";
 import { WSReactTypes } from "./types";
+import { Types } from "@nixjs23n6/types";
 import { builderMap } from "./utils";
 
 export interface SocketProviderProps {
   children: React.ReactNode;
-  WSConfig: WSReactTypes.BuilderConfigs;
+  WSConfig: Types.Nullable<WSReactTypes.BuilderConfigs>;
   defaultActive?: string | number;
 }
 
@@ -26,40 +26,72 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   const [ws, setWS] = React.useState<Types.Nullable<WSClient>>(null);
   const [type, setType] = React.useState<Types.Undefined<string | number>>();
 
+  const onExecuteBuild = ({
+    key,
+    resolve,
+    rejects,
+  }: {
+    key: string | number;
+    resolve: (state: WSEnums.States) => void;
+    rejects: (reason?: string | WSEnums.States) => void;
+  }) => {
+    if (!builders[key]) {
+      return rejects(WSEnums.States.ON_ERROR);
+    }
+    const promise: Promise<Types.Nullable<WSClient>> = new Promise(
+      (_resolve) => {
+        const b = builders[key].build({
+          executeState(state) {
+            return resolve(state);
+          },
+        });
+        return _resolve(b);
+      }
+    );
+    promise.then((r) => setWS(() => r));
+  };
+
   React.useEffect(() => {
-    if (Object.values(builders).length === 0 && defaultActive) {
+    if (WSConfig && Object.values(builders).length === 0) {
       const b = builderMap(WSConfig);
       setBuilders(b);
-      setWS(b[defaultActive].build({}));
     }
-  }, []);
+  }, [WSConfig, builders]);
+
+  React.useEffect(() => {
+    if (defaultActive && builders[defaultActive]) {
+      onExecuteBuild({
+        key: defaultActive,
+        resolve: () => null,
+        rejects: () => null,
+      });
+    }
+  }, [defaultActive, builders]);
 
   const onOpen = React.useCallback(
     (t: string) => {
-      return new Promise<WSEnums.States>((resolve, reject) => {
-        if (WSConfig[t] !== undefined) {
+      return new Promise<WSEnums.States>((resolve, rejects) => {
+        if (builders && builders[t] !== undefined) {
           if (type !== t) {
             setType(t);
-            if (ws)
+            if (ws) {
               ws.close(
                 "Close current connection to create new connection."
-              ).then((state: WSEnums.States) => {
+              ).then((state) => {
                 if (state === WSEnums.States.ON_CLOSE) {
-                  const b = builders[t].build({
-                    executeState(state: WSEnums.States) {
-                      resolve(state);
-                      setWS(() => b);
-                    },
-                  });
+                  onExecuteBuild({ key: t, resolve, rejects });
                 }
               });
+            } else {
+              onExecuteBuild({ key: t, resolve, rejects });
+            }
           } else {
             if (ws?.closed || !ws?.connected) {
               ws?.connect().then(resolve);
             }
           }
         } else {
-          return reject(WSEnums.States.ON_ERROR);
+          return rejects(WSEnums.States.ON_ERROR);
         }
       });
     },
@@ -77,7 +109,7 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   }, [ws]);
 
   const onClose = React.useCallback(
-    (reason = "Close socket") => {
+    (reason: string = "Close socket") => {
       return new Promise<WSEnums.States>((resolve, reject) => {
         if (ws) {
           if (!ws?.connected) throw new Error("No connection socket.");
@@ -93,12 +125,10 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   const onDestroy = React.useCallback(() => {
     return new Promise<WSEnums.States>((resolve, reject) => {
       if (ws && ws.connected) {
-        ws.close("Close the connection before destroy").then(
-          (state: WSEnums.States) => {
-            state === WSEnums.States.ON_CLOSE && setWS(null);
-            resolve(state);
-          }
-        );
+        ws.close("Close the connection before destroy").then((state) => {
+          state === WSEnums.States.ON_CLOSE && setWS(null);
+          resolve(state);
+        });
         setWS(null);
       } else {
         return reject(WSEnums.States.ON_ERROR);

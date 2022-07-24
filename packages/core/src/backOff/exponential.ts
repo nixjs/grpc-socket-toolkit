@@ -1,4 +1,4 @@
-import { BaseBackOff } from "./base";
+import { BaseBackOff } from "./Base";
 
 /**
  * ExponentialBackOff doubles the backOff with every step until a maximum

@@ -1,4 +1,4 @@
-import { BaseBackOff } from "./base";
+import { BaseBackOff } from "./Base";
 
 /**
  * ConstantBackOff always returns the same value.

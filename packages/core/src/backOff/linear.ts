@@ -1,4 +1,4 @@
-import { BaseBackOff } from "./base";
+import { BaseBackOff } from "./Base";
 
 /**
  * LinearBackOff increases the backOff-time by a constant number with
