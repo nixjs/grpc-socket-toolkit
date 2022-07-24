@@ -109,7 +109,7 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   }, [ws]);
 
   const onClose = React.useCallback(
-    (reason: string = "Close socket") => {
+    (reason = "Close socket") => {
       return new Promise<WSEnums.States>((resolve, reject) => {
         if (ws) {
           if (!ws?.connected) throw new Error("No connection socket.");
