@@ -1,12 +1,15 @@
-import { Types } from "@nixjs23n6/types";
+import { Types, Interfaces } from "@nixjs23n6/types";
+import debug from "debug";
 import { proto, Proto } from "./proto";
 import { WSConstant } from "./constants";
 import { WSEnums } from "./enums";
 import { ProtoTypes, WSTypes } from "./types";
 import { BaseBackOff } from "./backOff";
 import { merge } from "./utils/merge";
+import { showLogger, LogType } from "./utils/logger";
 
 export class WSClient {
+  public log: debug.Debugger;
   public websocket?: WebSocket;
   public URL: string;
 
@@ -32,7 +35,8 @@ export class WSClient {
     path?: string,
     backOff?: BaseBackOff,
     protoConfigParameters?: WSTypes.ProtoConfigParameters,
-    executeAnyFunc?: (self: WSClient, protocols?: string | string[]) => void
+    executeAnyFunc?: (self: WSClient, protocols?: string | string[]) => void,
+    logger?: Interfaces.Logger
   ) {
     this._baseURL = baseURL;
     this._path = path || "";
@@ -46,6 +50,8 @@ export class WSClient {
     };
     this.setInitialState();
     this._executeAnyFunc = executeAnyFunc;
+    this.log = debug("");
+    this._initLogger(logger);
   }
 
   public set connected(v: boolean) {
@@ -158,6 +164,7 @@ export class WSClient {
 
       if (proto.protoRoot) {
         resolve(WSEnums.States.ON_PROTO_INIT);
+        this._logger("Notify", "Init proto");
         return this._createInstance();
       }
       this.initProto(
@@ -166,8 +173,9 @@ export class WSClient {
         this._protoConfigParameters?.protoJSONFallback,
         this._protoConfigParameters.executeEncoderDecoderMap
       )
-        .then((res) => {
+        .then(() => {
           resolve(WSEnums.States.ON_PROTO_INIT);
+          this._logger("Notify", "Init proto");
           this._createInstance();
         })
         .catch((error) => reject(error));
@@ -186,7 +194,7 @@ export class WSClient {
       if (pingMsg) {
         this.websocket.send(pingMsg);
       } else {
-        console.log("[Socket] Cannot create ping message");
+        this._logger("Error", "Cannot create ping message");
       }
     }
 
@@ -304,10 +312,11 @@ export class WSClient {
     state: WSEnums.States,
     type?: Types.Undefined<K>
   ) {
-    console.log(
-      `[Socket] Broadcasting state: ${state}. Metadata: ${JSON.stringify(
-        type
-      )}. URL: ${this.URL}`
+    this._logger(
+      "Notify",
+      `Broadcasting state: ${state}. Metadata: ${JSON.stringify(type)}. URL: ${
+        this.URL
+      }`
     );
     for (const listener of this._stateListeners) {
       listener.callback(state, type);
@@ -350,7 +359,7 @@ export class WSClient {
     }
 
     if (!foundOnce && msg.type !== proto.MsgType.PONG) {
-      console.warn("[Socket] Unhandled msg:", JSON.stringify(msg));
+      this._logger("Error", `Unhandled msg: ${JSON.stringify(msg)}`);
     }
   }
 
@@ -359,14 +368,14 @@ export class WSClient {
       if (!this.websocket) return resolve(WSEnums.States.ON_CLOSE);
       this._closedByUser = true; // logout
       if (this.websocket.readyState === WebSocket.OPEN) {
-        console.log(`[Socket] ${reason || "Client is closing web socket"}.`);
+        this._logger("Notify", `${reason || "Client is closing web socket"}.`);
         this._initState = true;
         this.websocket.close();
         this.subscribeState((state) => resolve(state));
       } else {
-        console.warn(
-          "[Socket] Cannot close web socket. WS State:",
-          this.websocket.readyState
+        this._logger(
+          "Error",
+          `Cannot close web socket. WS State: ${this.websocket.readyState}`
         );
         return resolve(WSEnums.States.ON_ERROR);
       }
@@ -382,7 +391,10 @@ export class WSClient {
       case WSEnums.WebsocketEvents.close:
         if (this._initState) {
           this.setInitialState();
-          console.log("[Socket] Clear all onceListeners and longListeners");
+          this._logger(
+            "Notify",
+            "Clear all onceListeners, longListeners and broadcastStates"
+          );
         }
         if (!this._closedByUser) {
           // failed to connect or connection lost, try to reconnect
@@ -412,6 +424,7 @@ export class WSClient {
   private _createInstance() {
     this.websocket = new WebSocket(this.URL, this._protocols);
     this.websocket.binaryType = "arraybuffer";
+    this._logger("Success", "The Socket instance created");
 
     this.websocket.onopen = (event) => {
       this._handleEvent(
@@ -459,8 +472,18 @@ export class WSClient {
     this._retry = true;
     setTimeout(() => {
       // retry connection after waiting out the backOff-interval
-      console.log("[Socket] Auto-reconnecting to server");
+      this._logger("Notify", "Auto-reconnecting to server");
       this.connect();
     }, backOff);
+  }
+
+  private _initLogger(logger?: Interfaces.Logger) {
+    this.log.enabled = (logger && logger.debug) || false;
+    this.log.namespace = (logger && logger.namespace) || "[Socket]";
+    this.log.color = (logger && logger.color) || "#D3DEDC";
+  }
+
+  private _logger(type: LogType, message: string) {
+    return showLogger(this.log, type, message);
   }
 }
