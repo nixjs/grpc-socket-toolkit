@@ -12,11 +12,12 @@ export class WSClient {
   public log: debug.Debugger;
   public websocket?: WebSocket;
   public URL: string;
-  public _protoRoot!: ProtoTypes.ProtoRoot & {
+
+  private _protoRoot!: ProtoTypes.ProtoRoot & {
     [k: string]: any;
   };
-  public _MsgType!: ProtoTypes.MsgType;
-  public _Msg!: ProtoTypes.Msg;
+  private _MsgType!: ProtoTypes.MsgType;
+  private _Msg!: ProtoTypes.Msg;
 
   private readonly _baseURL: string;
   private _protocols?: string | string[];
