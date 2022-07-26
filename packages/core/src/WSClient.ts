@@ -12,6 +12,11 @@ export class WSClient {
   public log: debug.Debugger;
   public websocket?: WebSocket;
   public URL: string;
+  public _protoRoot!: ProtoTypes.ProtoRoot & {
+    [k: string]: any;
+  };
+  public _MsgType!: ProtoTypes.MsgType;
+  public _Msg!: ProtoTypes.Msg;
 
   private readonly _baseURL: string;
   private _protocols?: string | string[];
@@ -74,6 +79,20 @@ export class WSClient {
     return this._protocols;
   }
 
+  public get protoRoot(): ProtoTypes.ProtoRoot & {
+    [k: string]: any;
+  } {
+    return this._protoRoot;
+  }
+
+  public get protoMsg(): ProtoTypes.Msg {
+    return this._Msg;
+  }
+
+  public get protoMsgType(): ProtoTypes.MsgType {
+    return this._MsgType;
+  }
+
   public setInitialState() {
     if (this._feedLiveIntervalId) clearInterval(this._feedLiveIntervalId);
     if (this._onceListeners) {
@@ -123,8 +142,8 @@ export class WSClient {
           this._protoConfigParameters.protoJSONFallback,
           this._protoConfigParameters.executeEncoderDecoderMap
         )
-        .then(() => {
-          return resolve(WSEnums.ProtoState.READY);
+        .then((res) => {
+          return resolve(res as WSEnums.ProtoState);
         })
         .catch((error) => reject(error));
     });
@@ -163,6 +182,7 @@ export class WSClient {
         this._executeAnyFunc(this);
 
       if (proto.protoRoot) {
+        this._storeProtoInfo();
         resolve(WSEnums.States.ON_PROTO_INIT);
         this._logger("Notify", "Init proto");
         return this._createInstance();
@@ -173,10 +193,15 @@ export class WSClient {
         this._protoConfigParameters?.protoJSONFallback,
         this._protoConfigParameters.executeEncoderDecoderMap
       )
-        .then(() => {
-          resolve(WSEnums.States.ON_PROTO_INIT);
-          this._logger("Notify", "Init proto");
-          this._createInstance();
+        .then((res) => {
+          if (res === WSEnums.ProtoState.READY) {
+            resolve(WSEnums.States.ON_PROTO_INIT);
+            this._logger("Notify", "Init proto");
+            this._storeProtoInfo();
+            this._createInstance();
+          } else {
+            reject(WSEnums.States.ON_ERROR);
+          }
         })
         .catch((error) => reject(error));
     });
@@ -485,5 +510,11 @@ export class WSClient {
 
   private _logger(type: LogType, message: string) {
     return showLogger(this.log, type, message);
+  }
+
+  private _storeProtoInfo() {
+    this._protoRoot = proto.protoRoot;
+    this._Msg = proto.Msg;
+    this._MsgType = proto.MsgType;
   }
 }
