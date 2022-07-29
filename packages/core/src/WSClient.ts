@@ -287,7 +287,7 @@ export class WSClient {
     return -1;
   }
 
-  public addToListener<T = any>(
+  public addToListener<T = any | string>(
     msgType: Types.Nullable<number>,
     msgId: Types.Nullable<string>,
     msgData: Types.Nullable<Types.Object<any>>,
@@ -330,7 +330,7 @@ export class WSClient {
         if (listenerType === WSEnums.ListenerTypes.ONCE)
           return resolve(promise);
       }
-      return resolve(new Promise(() => null));
+      return resolve(new Promise(() => subscriptionId));
     });
   }
 
