@@ -1,6 +1,6 @@
 {
   "name": "@nixjs23n6/grpc-socket-react",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "A react context which helps you to deal with gRPC websocket.",
   "sideEffects": false,
   "main": "lib/cjs/index.js",
@@ -32,8 +32,7 @@
   },
   "license": "MIT",
   "files": [
-    "lib",
-    "src"
+    "lib"
   ],
   "scripts": {
     "clean": "rimraf lib/*",
@@ -49,7 +48,7 @@
     "react": ">=16"
   },
   "devDependencies": {
-    "@nixjs23n6/grpc-socket-core": "^0.0.9",
+    "@nixjs23n6/grpc-socket-core": "^0.0.10",
     "@nixjs23n6/types": "^1.0.3",
     "react": "^17.0.0"
   }
