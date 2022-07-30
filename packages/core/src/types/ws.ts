@@ -6,11 +6,7 @@ export namespace WSTypes {
   export type ExecuteEncoderDecoderMap<T> = (self: T) => void;
   export type ExecuteAnyFunc<T> = (self: T) => void;
 
-  export type ExecuteSubscribeFunc = (
-    state: WSEnums.States,
-    type?: WSEnums.WebsocketEvents,
-    ...args: any[]
-  ) => void;
+  export type ExecuteSubscribeFunc<T = any> = (...args: T[]) => void;
 
   export type ExecuteBroadcastFunc = (
     state: WSEnums.ListenerTypes,

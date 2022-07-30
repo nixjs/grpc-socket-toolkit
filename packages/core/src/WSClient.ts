@@ -255,9 +255,9 @@ export class WSClient {
     return promise;
   }
 
-  public subscribe(
+  public subscribe<C = any>(
     msgType: Types.Nullable<number>,
-    callback: WSTypes.ExecuteSubscribeFunc
+    callback: WSTypes.ExecuteSubscribeFunc<C>
   ) {
     return this.addToListener(
       msgType,
@@ -349,7 +349,7 @@ export class WSClient {
     }
   }
 
-  public subscribeState(callback: WSTypes.ExecuteSubscribeFunc) {
+  public subscribeState<C>(callback: WSTypes.ExecuteSubscribeFunc<C>) {
     return this.addToListener(
       null,
       null,
@@ -397,7 +397,7 @@ export class WSClient {
         this._logger("Notify", `${reason || "Client is closing web socket"}.`);
         this._initState = true;
         this.websocket.close();
-        this.subscribeState((state) => resolve(state));
+        this.subscribeState((state: WSEnums.States) => resolve(state));
       } else {
         this._logger(
           "Error",
