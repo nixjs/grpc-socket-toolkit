@@ -255,11 +255,11 @@ export class WSClient {
     return promise;
   }
 
-  public subscribe<C = any>(
+  public subscribe<C = any, T = any>(
     msgType: Types.Nullable<number>,
     callback: WSTypes.ExecuteSubscribeFunc<C>
   ) {
-    return this.addToListener(
+    return this.addToListener<T>(
       msgType,
       null,
       null,
@@ -293,45 +293,42 @@ export class WSClient {
     msgData: Types.Nullable<Types.Object<any>>,
     listenerType: WSEnums.ListenerTypes,
     callback: WSTypes.ExecuteSubscribeFunc
-  ): Promise<T> {
-    return new Promise((resolve) => {
-      const subscriptionId = proto.generateId();
-      let listener = null;
+  ): any {
+    const subscriptionId = proto.generateId();
+    let listener = null;
 
-      switch (listenerType) {
-        case WSEnums.ListenerTypes.ONCE:
-          listener = this._onceListeners;
-          break;
+    switch (listenerType) {
+      case WSEnums.ListenerTypes.ONCE:
+        listener = this._onceListeners;
+        break;
 
-        case WSEnums.ListenerTypes.LONG:
-          listener = this._longListeners;
-          break;
+      case WSEnums.ListenerTypes.LONG:
+        listener = this._longListeners;
+        break;
 
-        case WSEnums.ListenerTypes.STATE:
-          listener = this._stateListeners;
-          break;
-        default:
-          break;
-      }
+      case WSEnums.ListenerTypes.STATE:
+        listener = this._stateListeners;
+        break;
+      default:
+        break;
+    }
 
-      if (listener != null) {
-        const promise: Promise<T> = new Promise((resolve, reject) => {
-          listener.push({
-            subscriptionId,
-            msgType,
-            msgId,
-            msgData,
-            addedTime: Date.now(),
-            resolve,
-            reject,
-            callback,
-          });
+    if (listener != null) {
+      const promise: Promise<T> = new Promise((resolve, reject) => {
+        listener.push({
+          subscriptionId,
+          msgType,
+          msgId,
+          msgData,
+          addedTime: Date.now(),
+          resolve,
+          reject,
+          callback,
         });
-        if (listenerType === WSEnums.ListenerTypes.ONCE)
-          return resolve(promise);
-      }
-      return resolve(new Promise(() => subscriptionId));
-    });
+      });
+      if (listenerType === WSEnums.ListenerTypes.ONCE) return promise;
+    }
+    return subscriptionId;
   }
 
   public broadcastState<K extends WSEnums.WebsocketEvents>(
