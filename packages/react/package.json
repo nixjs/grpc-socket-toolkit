@@ -43,7 +43,7 @@
     "lint": "eslint 'src/**/*.{ts,tsx}'"
   },
   "peerDependencies": {
-    "@nixjs23n6/grpc-socket-core": "^0.0.0",
+    "@nixjs23n6/grpc-socket-core": "^0.0.11",
     "@nixjs23n6/types": "^1.0.3",
     "react": ">=16"
   },
