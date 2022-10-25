@@ -4,7 +4,7 @@ import { proto, Proto } from "./proto";
 import { WSConstant } from "./constants";
 import { WSEnums } from "./enums";
 import { ProtoTypes, WSTypes } from "./types";
-import { BaseBackOff } from "./backOff";
+import { BaseBackOff, ConstantBackOff } from "./backOff";
 import { merge } from "./utils/merge";
 import { showLogger, LogType } from "./utils/logger";
 
@@ -48,7 +48,7 @@ export class WSClient {
     this._path = path || "";
     this.URL = this._baseURL + this._path;
     this._protocols = protocols;
-    this._backOff = backOff;
+    this._backOff = backOff || new ConstantBackOff(1000);
     this._protoConfigParameters = protoConfigParameters || {
       nestedRoot: "",
       protoFile: "",
