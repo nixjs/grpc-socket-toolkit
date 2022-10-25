@@ -1,6 +1,6 @@
 {
   "name": "@nixjs23n6/grpc-socket-core",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "gRPC for Web Clients.",
   "sideEffects": false,
   "main": "lib/cjs/index.js",
