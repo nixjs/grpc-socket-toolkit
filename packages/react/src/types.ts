@@ -17,6 +17,7 @@ export namespace WSReactTypes {
     protoConfigParameters?: WSTypes.ProtoConfigParameters;
     executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>;
     logger?: Interfaces.Logger;
+    maxRetries?: number;
   }
   export type BuilderConfigs = Record<string, WSParameters>;
   export type BuilderInstances = Record<string, WSClientBuilder>;

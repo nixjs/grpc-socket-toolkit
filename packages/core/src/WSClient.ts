@@ -34,6 +34,8 @@ export class WSClient {
   private _closedByUser = false;
   private _initState = false;
   private _retry = false;
+  private _maxRetries: number;
+  private _maxRetriesCounter: number;
 
   constructor(
     baseURL: string,
@@ -42,18 +44,21 @@ export class WSClient {
     backOff?: BaseBackOff,
     protoConfigParameters?: WSTypes.ProtoConfigParameters,
     executeAnyFunc?: (self: WSClient, protocols?: string | string[]) => void,
-    logger?: Interfaces.Logger
+    logger?: Interfaces.Logger,
+    maxRetries?: number
   ) {
     this._baseURL = baseURL;
     this._path = path || "";
     this.URL = this._baseURL + this._path;
     this._protocols = protocols;
     this._backOff = backOff || new ConstantBackOff(1000);
+    this._maxRetriesCounter = 0;
     this._protoConfigParameters = protoConfigParameters || {
       nestedRoot: "",
       protoFile: "",
       executeEncoderDecoderMap: () => null,
     };
+    this._maxRetries = maxRetries || 9;
     this.setInitialState();
     this._executeAnyFunc = executeAnyFunc;
     this.log = debug("");
@@ -492,10 +497,16 @@ export class WSClient {
   private _reconnect() {
     if (!this._backOff) return;
     const backOff = this._backOff.next();
+    if (this._maxRetriesCounter >= this._maxRetries) {
+      this._retry = false;
+      this._backOff.reset();
+      return;
+    }
     this._retry = true;
     setTimeout(() => {
       // retry connection after waiting out the backOff-interval
       this._logger("Notify", "Auto-reconnecting to server");
+      this._maxRetriesCounter += 1;
       this.connect();
     }, backOff);
   }
