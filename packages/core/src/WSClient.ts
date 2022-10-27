@@ -35,7 +35,7 @@ export class WSClient {
   private _initState = false;
   private _retry = false;
   private _maxRetries: number;
-  private _maxRetriesCounter: number;
+  private _retries: number;
 
   constructor(
     baseURL: string,
@@ -52,7 +52,7 @@ export class WSClient {
     this.URL = this._baseURL + this._path;
     this._protocols = protocols;
     this._backOff = backOff || new ConstantBackOff(1000);
-    this._maxRetriesCounter = 0;
+    this._retries = 0;
     this._protoConfigParameters = protoConfigParameters || {
       nestedRoot: "",
       protoFile: "",
@@ -130,8 +130,8 @@ export class WSClient {
     protoFile: string,
     protoJSONFallback?: Types.Object<any>,
     executeEncoderDecoderMap?: (self: Proto) => void
-  ): Promise<WSEnums.ProtoState> {
-    return new Promise((resolve, reject) => {
+  ) {
+    return new Promise<WSEnums.ProtoState>((resolve, reject) => {
       if (proto.protoRoot) {
         return resolve(WSEnums.ProtoState.READY);
       }
@@ -160,8 +160,8 @@ export class WSClient {
     protocols?: string | string[],
     protoConfigParameters?: WSTypes.ProtoConfigParameters,
     executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>
-  ): Promise<number> {
-    return new Promise((resolve, reject) => {
+  ) {
+    return new Promise<number>((resolve, reject) => {
       if (this.connected) {
         return resolve(WSEnums.States.ON_CONNECTED);
       }
@@ -331,7 +331,7 @@ export class WSClient {
           callback,
         });
       });
-      if (listenerType === WSEnums.ListenerTypes.ONCE) return promise;
+      return promise;
     }
     return subscriptionId;
   }
@@ -366,6 +366,8 @@ export class WSClient {
     const numOnceListener = this._onceListeners.length;
     const numLongListener = this._longListeners.length;
 
+    this._logger("Notify", `Broadcasting message: ${JSON.stringify(msg)}`);
+
     for (let i = 0; i < numOnceListener; i += 1) {
       const listener = this._onceListeners[i];
       if (listener?.msgId === msg.id) {
@@ -391,8 +393,8 @@ export class WSClient {
     }
   }
 
-  public close(reason: Types.Nullable<string>): Promise<number> {
-    return new Promise((resolve) => {
+  public close(reason: Types.Nullable<string>) {
+    return new Promise<number>((resolve) => {
       if (!this.websocket) return resolve(WSEnums.States.ON_CLOSE);
       this._closedByUser = true; // logout
       if (this.websocket.readyState === WebSocket.OPEN) {
@@ -410,11 +412,40 @@ export class WSClient {
     });
   }
 
+  private _handleOpenEvent = (ev: Event) =>
+    this._handleEvent(
+      WSEnums.States.ON_OPENED,
+      WSEnums.WebsocketEvents.open,
+      ev
+    );
+
+  private _handleCloseEvent = (ev: CloseEvent) =>
+    this._handleEvent(
+      WSEnums.States.ON_CLOSE,
+      WSEnums.WebsocketEvents.close,
+      ev
+    );
+
+  private _handleErrorEvent = (ev: Event) =>
+    this._handleEvent(
+      WSEnums.States.ON_ERROR,
+      WSEnums.WebsocketEvents.error,
+      ev
+    );
+
+  private _handleMessageEvent = (ev: MessageEvent) =>
+    this._handleEvent(
+      WSEnums.States.ON_CONNECTED,
+      WSEnums.WebsocketEvents.message,
+      ev
+    );
+
   private _handleEvent<K extends WSEnums.WebsocketEvents>(
     protoState: WSEnums.States,
     type: K,
     ev: WSTypes.WebsocketEventMap[K]
   ) {
+    // eslint-disable-next-line default-case
     switch (type) {
       case WSEnums.WebsocketEvents.close:
         if (this._initState) {
@@ -426,14 +457,16 @@ export class WSClient {
         }
         if (!this._closedByUser) {
           // failed to connect or connection lost, try to reconnect
-          this._reconnect();
+          this.reconnect();
         }
         break;
       case WSEnums.WebsocketEvents.open:
+        this._retries = 0;
         this._feedLiveIntervalId = setInterval(() => this.feedLive(), 1000);
         this._backOff?.reset(); // reset backOff
         break;
     }
+
     this._dispatchEvent<K>(protoState, type, ev); // forward to all listeners
   }
 
@@ -450,35 +483,71 @@ export class WSClient {
   }
 
   private _createInstance() {
+    if (this.websocket !== undefined) {
+      // remove all event-listeners from broken socket
+      this.websocket.removeEventListener(
+        WSEnums.WebsocketEvents.open,
+        this._handleOpenEvent
+      );
+      this.websocket.removeEventListener(
+        WSEnums.WebsocketEvents.close,
+        this._handleCloseEvent
+      );
+      this.websocket.removeEventListener(
+        WSEnums.WebsocketEvents.error,
+        this._handleErrorEvent
+      );
+      this.websocket.removeEventListener(
+        WSEnums.WebsocketEvents.message,
+        this._handleMessageEvent
+      );
+      this.websocket.close();
+    }
     this.websocket = new WebSocket(this.URL, this._protocols);
     this.websocket.binaryType = "arraybuffer";
     this._logger("Success", "The Socket instance created");
 
-    this.websocket.onopen = (event) => {
-      this._handleEvent(
-        WSEnums.States.ON_OPENED,
-        WSEnums.WebsocketEvents.open,
-        event
-      );
-    };
-    this.websocket.onclose = (event) =>
-      this._handleEvent(
-        WSEnums.States.ON_CLOSE,
-        WSEnums.WebsocketEvents.close,
-        event
-      );
-    this.websocket.onerror = (event) =>
-      this._handleEvent(
-        WSEnums.States.ON_ERROR,
-        WSEnums.WebsocketEvents.error,
-        event
-      );
-    this.websocket.onmessage = (event) =>
-      this._handleEvent(
-        WSEnums.States.ON_CONNECTED,
-        WSEnums.WebsocketEvents.message,
-        event
-      );
+    this.websocket.addEventListener(
+      WSEnums.WebsocketEvents.open,
+      this._handleOpenEvent
+    );
+    this.websocket.addEventListener(
+      WSEnums.WebsocketEvents.close,
+      this._handleCloseEvent
+    );
+    this.websocket.addEventListener(
+      WSEnums.WebsocketEvents.error,
+      this._handleErrorEvent
+    );
+    this.websocket.addEventListener(
+      WSEnums.WebsocketEvents.message,
+      this._handleMessageEvent
+    );
+  }
+
+  public reconnect() {
+    return new Promise<number>((resolve, reject) => {
+      if (!this._backOff) return;
+      const backOff = this._backOff.next();
+      if (this._retries >= this._maxRetries) {
+        this._retry = false;
+        this._backOff.reset();
+        return reject(WSEnums.States.ON_ERROR);
+      }
+      this._retry = true;
+      setTimeout(() => {
+        // retry connection after waiting out the backOff-interval
+        this._logger("Notify", "Auto-reconnecting to server");
+        this._retries += 1;
+        this.connect().then(resolve).catch(reject);
+      }, backOff);
+    });
+  }
+
+  private _storeProtoInfo() {
+    this._protoRoot = proto.protoRoot;
+    this._Msg = proto.Msg;
+    this._MsgType = proto.MsgType;
   }
 
   private _mergeProtoConfig = ({
@@ -494,23 +563,6 @@ export class WSClient {
       executeEncoderDecoderMap,
     }) as WSTypes.ProtoConfigParameters;
 
-  private _reconnect() {
-    if (!this._backOff) return;
-    const backOff = this._backOff.next();
-    if (this._maxRetriesCounter >= this._maxRetries) {
-      this._retry = false;
-      this._backOff.reset();
-      return;
-    }
-    this._retry = true;
-    setTimeout(() => {
-      // retry connection after waiting out the backOff-interval
-      this._logger("Notify", "Auto-reconnecting to server");
-      this._maxRetriesCounter += 1;
-      this.connect();
-    }, backOff);
-  }
-
   private _initLogger(logger?: Interfaces.Logger) {
     this.log.enabled = (logger && logger.debug) || false;
     this.log.namespace = (logger && logger.namespace) || "[Socket]";
@@ -519,11 +571,5 @@ export class WSClient {
 
   private _logger(type: LogType, message: string) {
     return showLogger(this.log, type, message);
-  }
-
-  private _storeProtoInfo() {
-    this._protoRoot = proto.protoRoot;
-    this._Msg = proto.Msg;
-    this._MsgType = proto.MsgType;
   }
 }

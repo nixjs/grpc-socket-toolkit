@@ -101,7 +101,7 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   const onReconnect = React.useCallback(() => {
     return new Promise<WSEnums.States>((resolve, reject) => {
       if (ws && !ws?.connected) {
-        ws.connect().then(resolve);
+        ws.reconnect().then(resolve).catch(reject);
       } else {
         return reject(WSEnums.States.ON_ERROR);
       }
@@ -111,11 +111,11 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   const onClose = React.useCallback(
     (reason = "Close socket") => {
       return new Promise<WSEnums.States>((resolve, reject) => {
-        if (ws) {
-          if (!ws?.connected) throw new Error("No connection socket.");
-          ws?.close(reason).then(resolve);
-        } else {
-          return reject(WSEnums.States.ON_ERROR);
+        try {
+          ws?.close(reason);
+          resolve(WSEnums.States.ON_CLOSE);
+        } catch (error) {
+          reject(WSEnums.States.ON_ERROR);
         }
       });
     },
@@ -124,14 +124,12 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
 
   const onDestroy = React.useCallback(() => {
     return new Promise<WSEnums.States>((resolve, reject) => {
-      if (ws && ws.connected) {
-        ws.close("Close the connection before destroy").then((state) => {
-          state === WSEnums.States.ON_CLOSE && setWS(null);
-          resolve(state);
-        });
+      try {
+        ws?.close("Close the connection before destroy");
+        resolve(WSEnums.States.ON_CLOSE);
         setWS(null);
-      } else {
-        return reject(WSEnums.States.ON_ERROR);
+      } catch (error) {
+        reject(WSEnums.States.ON_ERROR);
       }
     });
   }, [ws]);

@@ -11,7 +11,6 @@ export const builderMap = (WSConfig: WSReactTypes.BuilderConfigs) => {
       baseURL,
       path,
       protocols,
-      isProtocolsRequired,
       backOff,
       executeAnyFunc,
       protoConfigParameters,
