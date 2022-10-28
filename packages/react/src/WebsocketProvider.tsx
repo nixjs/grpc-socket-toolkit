@@ -3,6 +3,7 @@ import {
   WSClient,
   WSClientBuilder,
   WSEnums,
+  WSTypes,
 } from "@nixjs23n6/grpc-socket-core";
 import { WebsocketContext } from "./useWebsocket";
 import { WSReactTypes } from "./types";
@@ -30,10 +31,18 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
     key,
     resolve,
     rejects,
+    path,
+    protocols,
+    protoConfigParameters,
+    executeAnyFunc,
   }: {
     key: string | number;
     resolve: (state: WSEnums.States) => void;
     rejects: (reason?: string | WSEnums.States) => void;
+    path?: string;
+    protocols?: string | string[];
+    protoConfigParameters?: WSTypes.ProtoConfigParameters;
+    executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>;
   }) => {
     if (!builders[key]) {
       return rejects(WSEnums.States.ON_ERROR);
@@ -44,6 +53,10 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
           executeState(state) {
             return resolve(state);
           },
+          path,
+          protocols,
+          protoConfigParameters,
+          executeAnyFunc,
         });
         return _resolve(b);
       }
@@ -69,25 +82,53 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   }, [defaultActive, builders]);
 
   const onOpen = React.useCallback(
-    (t: string) => {
+    (
+      t: string,
+      path?: string,
+      protocols?: string | string[],
+      protoConfigParameters?: WSTypes.ProtoConfigParameters,
+      executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>
+    ) => {
       return new Promise<WSEnums.States>((resolve, rejects) => {
         if (builders && builders[t] !== undefined) {
           if (type !== t) {
             setType(t);
-            if (ws) {
+            if (ws && ws.connected) {
               ws.close(
+                WSEnums.ReasonCode.CLOSE,
                 "Close current connection to create new connection."
               ).then((state) => {
                 if (state === WSEnums.States.ON_CLOSE) {
-                  onExecuteBuild({ key: t, resolve, rejects });
+                  onExecuteBuild({
+                    key: t,
+                    resolve,
+                    rejects,
+                    path,
+                    protocols,
+                    protoConfigParameters,
+                    executeAnyFunc,
+                  });
                 }
               });
             } else {
-              onExecuteBuild({ key: t, resolve, rejects });
+              onExecuteBuild({
+                key: t,
+                resolve,
+                rejects,
+                path,
+                protocols,
+                protoConfigParameters,
+                executeAnyFunc,
+              });
             }
           } else {
             if (ws?.closed || !ws?.connected) {
-              ws?.connect().then(resolve);
+              ws?.connect(
+                path,
+                protocols,
+                protoConfigParameters,
+                executeAnyFunc
+              ).then(resolve);
             }
           }
         } else {
@@ -109,10 +150,10 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   }, [ws]);
 
   const onClose = React.useCallback(
-    (reason = "Close socket") => {
+    (code = WSEnums.ReasonCode.CLOSE, reason = "Close socket") => {
       return new Promise<WSEnums.States>((resolve, reject) => {
         try {
-          ws?.close(reason);
+          ws?.close(code, reason);
           resolve(WSEnums.States.ON_CLOSE);
         } catch (error) {
           reject(WSEnums.States.ON_ERROR);
@@ -125,7 +166,10 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
   const onDestroy = React.useCallback(() => {
     return new Promise<WSEnums.States>((resolve, reject) => {
       try {
-        ws?.close("Close the connection before destroy");
+        ws?.close(
+          WSEnums.ReasonCode.DESTROY,
+          "Close the connection before destroy"
+        );
         resolve(WSEnums.States.ON_CLOSE);
         setWS(null);
       } catch (error) {
@@ -140,6 +184,7 @@ export const WebsocketProvider: React.FC<SocketProviderProps> = ({
         builders,
         ws,
         type,
+        WSConfig,
         onOpen,
         onClose,
         onReconnect,

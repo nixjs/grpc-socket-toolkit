@@ -1,7 +1,7 @@
 import { Types, Interfaces } from "@nixjs23n6/types";
+import { BaseBackOff } from "@nixjs23n6/backoff-typescript";
 import { WSTypes } from "./types";
 import { WSClient } from "./WSClient";
-import { BaseBackOff } from "./backOff";
 import { WSEnums } from "./enums";
 
 export interface BuilderParameters {

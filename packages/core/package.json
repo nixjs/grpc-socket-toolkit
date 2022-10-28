@@ -1,6 +1,6 @@
 {
   "name": "@nixjs23n6/grpc-socket-core",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "gRPC for Web Clients.",
   "sideEffects": false,
   "main": "lib/cjs/index.js",
@@ -49,7 +49,11 @@
     "protobufjs": "^7.1.2",
     "uuid": "^9.0.0"
   },
+  "peerDependencies": {
+    "@nixjs23n6/backoff-typescript": "^0.0.1"
+  },
   "devDependencies": {
+    "@nixjs23n6/backoff-typescript": "^0.0.1",
     "@types/debug": "^4.1.7",
     "@types/uuid": "^8.3.4"
   }

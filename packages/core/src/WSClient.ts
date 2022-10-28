@@ -1,10 +1,10 @@
 import { Types, Interfaces } from "@nixjs23n6/types";
+import { BaseBackOff, ConstantBackOff } from "@nixjs23n6/backoff-typescript";
 import debug from "debug";
 import { proto, Proto } from "./proto";
 import { WSConstant } from "./constants";
 import { WSEnums } from "./enums";
 import { ProtoTypes, WSTypes } from "./types";
-import { BaseBackOff, ConstantBackOff } from "./backOff";
 import { merge } from "./utils/merge";
 import { showLogger, LogType } from "./utils/logger";
 
@@ -32,10 +32,12 @@ export class WSClient {
   private _stateListeners: WSTypes.ListenerData[] = [];
 
   private _closedByUser = false;
+  private _autoReconnect = false; // Auto reconnect when the socket closed
   private _initState = false;
   private _retry = false;
   private _maxRetries: number;
-  private _retries: number;
+  private _retries: number; // The number of retries
+  private _autoDestroyListeners: boolean;
 
   constructor(
     baseURL: string,
@@ -45,7 +47,9 @@ export class WSClient {
     protoConfigParameters?: WSTypes.ProtoConfigParameters,
     executeAnyFunc?: (self: WSClient, protocols?: string | string[]) => void,
     logger?: Interfaces.Logger,
-    maxRetries?: number
+    maxRetries?: number, // The maximum number of retries
+    autoReconnect?: boolean,
+    autoDestroyListeners?: boolean // Auto remove listeners when the socket closed
   ) {
     this._baseURL = baseURL;
     this._path = path || "";
@@ -53,6 +57,8 @@ export class WSClient {
     this._protocols = protocols;
     this._backOff = backOff || new ConstantBackOff(1000);
     this._retries = 0;
+    this._autoDestroyListeners = autoDestroyListeners || false;
+    this._autoReconnect = autoReconnect || false;
     this._protoConfigParameters = protoConfigParameters || {
       nestedRoot: "",
       protoFile: "",
@@ -338,7 +344,9 @@ export class WSClient {
 
   public broadcastState<K extends WSEnums.WebsocketEvents>(
     state: WSEnums.States,
-    type?: Types.Undefined<K>
+    type?: Types.Undefined<K>,
+    code?: number,
+    reason?: string
   ) {
     this._logger(
       "Notify",
@@ -347,15 +355,19 @@ export class WSClient {
       }`
     );
     for (const listener of this._stateListeners) {
-      listener.callback(state, type);
+      listener.callback({ state, type, code, reason });
     }
   }
 
-  public subscribeState<C>(callback: WSTypes.ExecuteSubscribeFunc<C>) {
+  public subscribeState<C>(
+    callback: WSTypes.ExecuteSubscribeFunc<C>,
+    code?: number,
+    reason?: string
+  ) {
     return this.addToListener(
       null,
       null,
-      null,
+      { code, reason },
       WSEnums.ListenerTypes.STATE,
       callback
     );
@@ -366,7 +378,12 @@ export class WSClient {
     const numOnceListener = this._onceListeners.length;
     const numLongListener = this._longListeners.length;
 
-    this._logger("Notify", `Broadcasting message: ${JSON.stringify(msg)}`);
+    this._logger(
+      "Notify",
+      `Broadcasting message: ${JSON.stringify(msg)}. Protocols: ${
+        this._protocols
+      }`
+    );
 
     for (let i = 0; i < numOnceListener; i += 1) {
       const listener = this._onceListeners[i];
@@ -393,22 +410,40 @@ export class WSClient {
     }
   }
 
-  public close(reason: Types.Nullable<string>) {
-    return new Promise<number>((resolve) => {
+  public close(code?: number, reason?: string) {
+    return new Promise<any>((resolve) => {
       if (!this.websocket) return resolve(WSEnums.States.ON_CLOSE);
       this._closedByUser = true; // logout
       if (this.websocket.readyState === WebSocket.OPEN) {
-        this._logger("Notify", `${reason || "Client is closing web socket"}.`);
-        this._initState = true;
-        this.websocket.close();
-        this.subscribeState((state: WSEnums.States) => resolve(state));
-      } else {
         this._logger(
-          "Error",
-          `Cannot close web socket. WS State: ${this.websocket.readyState}`
+          "Notify",
+          `${code}: ${reason || "Client is closing web socket"}.`
         );
-        return resolve(WSEnums.States.ON_ERROR);
+        this._initState = true;
+        this.websocket.close(code, reason);
+        this.subscribeState(resolve, code, reason);
+        return;
       }
+      return resolve(WSEnums.States.ON_CLOSE);
+    });
+  }
+
+  public reconnect() {
+    return new Promise<number>((resolve, reject) => {
+      if (!this._backOff) return;
+      const backOff = this._backOff.next();
+      if (this._retries >= this._maxRetries) {
+        this._retry = false;
+        this._backOff.reset();
+        return reject(WSEnums.States.ON_ERROR);
+      }
+      this._retry = true;
+      setTimeout(() => {
+        // retry connection after waiting out the backOff-interval
+        this._logger("Notify", "Auto-reconnecting to server");
+        this._retries += 1;
+        this.connect().then(resolve).catch(reject);
+      }, backOff);
     });
   }
 
@@ -448,14 +483,14 @@ export class WSClient {
     // eslint-disable-next-line default-case
     switch (type) {
       case WSEnums.WebsocketEvents.close:
-        if (this._initState) {
+        if (this._initState && this._autoDestroyListeners) {
           this.setInitialState();
           this._logger(
             "Notify",
             "Clear all onceListeners, longListeners and broadcastStates"
           );
         }
-        if (!this._closedByUser) {
+        if (!this._closedByUser && this._autoReconnect) {
           // failed to connect or connection lost, try to reconnect
           this.reconnect();
         }
@@ -478,7 +513,13 @@ export class WSClient {
     if (type === WSEnums.WebsocketEvents.message) {
       this.broadcastMessage(proto.decodeMsg((ev as any).data));
     } else {
-      this.broadcastState(protoState, type);
+      let _code, _reason;
+      if (ev.type === WSEnums.WebsocketEvents.close) {
+        const { code, reason } = ev as CloseEvent;
+        _code = code;
+        _reason = reason;
+      }
+      this.broadcastState(protoState, type, _code, _reason);
     }
   }
 
@@ -501,7 +542,10 @@ export class WSClient {
         WSEnums.WebsocketEvents.message,
         this._handleMessageEvent
       );
-      this.websocket.close();
+      this.websocket.close(
+        WSEnums.ReasonCode.CLOSE,
+        "Close socket instance before create the new instance"
+      );
     }
     this.websocket = new WebSocket(this.URL, this._protocols);
     this.websocket.binaryType = "arraybuffer";
@@ -523,25 +567,6 @@ export class WSClient {
       WSEnums.WebsocketEvents.message,
       this._handleMessageEvent
     );
-  }
-
-  public reconnect() {
-    return new Promise<number>((resolve, reject) => {
-      if (!this._backOff) return;
-      const backOff = this._backOff.next();
-      if (this._retries >= this._maxRetries) {
-        this._retry = false;
-        this._backOff.reset();
-        return reject(WSEnums.States.ON_ERROR);
-      }
-      this._retry = true;
-      setTimeout(() => {
-        // retry connection after waiting out the backOff-interval
-        this._logger("Notify", "Auto-reconnecting to server");
-        this._retries += 1;
-        this.connect().then(resolve).catch(reject);
-      }, backOff);
-    });
   }
 
   private _storeProtoInfo() {

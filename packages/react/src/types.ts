@@ -1,9 +1,9 @@
 import { Types, Interfaces } from "@nixjs23n6/types";
+import { BaseBackOff } from "@nixjs23n6/backoff-typescript";
 import {
   WSTypes,
   WSClient,
   WSClientBuilder,
-  BaseBackOff,
   WSEnums,
 } from "@nixjs23n6/grpc-socket-core";
 
@@ -25,9 +25,16 @@ export namespace WSReactTypes {
     type?: string | number;
     builders: BuilderInstances;
     ws: Types.Nullable<WSClient>;
-    onOpen: (type: string) => Promise<any>;
+    WSConfig: Types.Nullable<WSReactTypes.BuilderConfigs>;
+    onOpen: (
+      type: string,
+      path?: string,
+      protocols?: string | string[],
+      protoConfigParameters?: WSTypes.ProtoConfigParameters,
+      executeAnyFunc?: WSTypes.ExecuteAnyFunc<WSClient>
+    ) => Promise<any>;
     onReconnect: () => Promise<WSEnums.States>;
-    onClose: (reason?: string) => Promise<WSEnums.States>;
+    onClose: (code?: number, reason?: string) => Promise<WSEnums.States>;
     onDestroy: () => Promise<WSEnums.States>;
   }
 }

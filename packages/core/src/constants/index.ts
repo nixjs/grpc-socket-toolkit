@@ -11,4 +11,10 @@ export namespace WSConstant {
         3: 'ON_CLOSE',
         4: 'ON_CONNECTED'
     }
+    export const WS_CLOSE_REASON = {
+        4000: 'Close normally',
+        4001: 'Close and destroy socket instance',
+        4002: 'Close to reconnect',
+        4003: 'Logout to close socket'
+    }
 }
