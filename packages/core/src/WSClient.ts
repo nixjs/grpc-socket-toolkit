@@ -1,11 +1,11 @@
 import { Types, Interfaces } from "@nixjs23n6/types";
 import { BaseBackOff, ConstantBackOff } from "@nixjs23n6/backoff-typescript";
+import { Objectify } from "@nixjs23n6/objectify";
 import debug from "debug";
 import { proto, Proto } from "./proto";
 import { WSConstant } from "./constants";
 import { WSEnums } from "./enums";
 import { ProtoTypes, WSTypes } from "./types";
-import { merge } from "./utils/merge";
 import { showLogger, LogType } from "./utils/logger";
 
 export class WSClient {
@@ -581,7 +581,7 @@ export class WSClient {
     protoJSONFallback,
     executeEncoderDecoderMap,
   }: WSTypes.ProtoConfigParameters) =>
-    merge(this._protoConfigParameters, {
+    Objectify.merge(this._protoConfigParameters, {
       nestedRoot,
       protoFile,
       protoJSONFallback,
